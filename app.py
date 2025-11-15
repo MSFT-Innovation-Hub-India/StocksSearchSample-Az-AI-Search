@@ -291,8 +291,49 @@ def detect_index_code(text_lower: str) -> Optional[str]:
     return best["code"] if best else None
 
 
-def detect_sector(text_lower: str) -> Optional[str]:
-    """Detect sector from user input. Return sector name or None."""
+def detect_sector(text_lower: str, original_text: str) -> Optional[str]:
+    """Detect sector from user input. Return sector name or None.
+    
+    Avoids matching if sector keyword appears to be part of a company name.
+    For example: 'axis bank' or 'bajaj auto' should not trigger sector detection.
+    
+    Logic: If there's a specific word (non-article, non-modifier) before the sector keyword
+    in a short query, it's likely a company name.
+    """
+    
+    # Words that indicate a sector/listing query rather than a company name
+    sector_modifiers = {
+        "all", "top", "best", "good", "leading", "major", "large", "small",
+        "show", "list", "give", "find", "get", "see", "view",
+        "sector", "industry", "companies", "stocks", "shares",
+        "nifty", "index"
+    }
+    
+    tokens = text_lower.split()
+    listing_keywords = ["stocks", "companies", "list", "show", "sector", "all", "in", "please", "me"]
+    has_listing_context = any(kw in text_lower for kw in listing_keywords)
+    
+    # For short queries (2-3 words) without listing context
+    if len(tokens) <= 3 and not has_listing_context:
+        # Check if there's a word before the sector keyword
+        for phrase, sector in SECTOR_ALIASES.items():
+            if phrase in text_lower:
+                phrase_words = phrase.split()
+                sector_keyword = phrase_words[-1]  # e.g., "bank", "auto", "energy"
+                
+                # Find the position of sector keyword in the tokens
+                try:
+                    keyword_index = tokens.index(sector_keyword)
+                    # If there's a preceding word that's not a modifier
+                    if keyword_index > 0:
+                        preceding_word = tokens[keyword_index - 1]
+                        # If preceding word is not a sector modifier, it's likely a company name
+                        if preceding_word not in sector_modifiers and len(preceding_word) > 2:
+                            return None
+                except ValueError:
+                    # Sector keyword not found as separate token, continue
+                    pass
+    
     best = None
     for phrase, sector in SECTOR_ALIASES.items():
         if phrase in text_lower:
@@ -352,6 +393,7 @@ def detect_metric_filter(text_lower: str) -> Optional[Dict[str, Any]]:
 def extract_stock_query(original: str, text_lower: str, metric_info: Optional[Dict[str, Any]]) -> Optional[str]:
     """
     Heuristic: remove metric phrase + stopwords, treat remaining text as stock query.
+    Preserves company names even if they contain sector keywords (e.g., 'axis bank', 'bajaj auto').
     """
     tokens = re.findall(r"[a-zA-Z0-9&.\-]+", text_lower)
     if metric_info:
@@ -359,6 +401,7 @@ def extract_stock_query(original: str, text_lower: str, metric_info: Optional[Di
     else:
         metric_tokens = []
 
+    # Extended stopwords - but don't remove sector words if they're part of a stock name
     filtered = []
     for tok in tokens:
         if tok in STOPWORDS_FOR_STOCK:
@@ -416,7 +459,7 @@ def parse_user_query(user_input: str) -> Dict[str, Any]:
 
     metric_info = detect_metric(text_lower)
     index_code = detect_index_code(text_lower)
-    sector = detect_sector(text_lower)
+    sector = detect_sector(text_lower, original)  # Pass original text for capitalization check
     metric_filter = detect_metric_filter(text_lower)
 
     # 1) Index + Metric filter combination (e.g., "nifty 50 stocks with pe less than 50")
