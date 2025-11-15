@@ -461,7 +461,17 @@ def parse_user_query(user_input: str) -> Dict[str, Any]:
                 }
             }
 
-    # 3) Sector-based listing without filter (e.g., "Healthcare companies")
+    # 3) No metric filter but an index detected => list_by_index
+    # Check index BEFORE sector to give index priority
+    if index_code and metric_info is None:
+        return {
+            "mode": "list_by_index",
+            "index_code": index_code,
+            "metric_filter": None,
+            "raw": {"input": original}
+        }
+
+    # 4) Sector-based listing without filter (e.g., "Healthcare companies")
     if sector is not None:
         listing_keywords = ["stocks", "companies", "list", "show", "all", "in"]
         has_listing_context = any(kw in text_lower for kw in listing_keywords) or "sector" in text_lower
@@ -476,7 +486,7 @@ def parse_user_query(user_input: str) -> Dict[str, Any]:
                 "raw": {"input": original}
             }
 
-    # 4) Metric filter for many stocks
+    # 5) Metric filter for many stocks
     if metric_filter is not None:
         return {
             "mode": "list_by_metric_filter",
@@ -491,15 +501,6 @@ def parse_user_query(user_input: str) -> Dict[str, Any]:
                 "metric_phrase": metric_filter["raw_metric_phrase"],
                 "comp_phrase": metric_filter["raw_comp_phrase"]
             }
-        }
-
-    # 5) No metric filter but an index detected => list_by_index
-    if index_code and metric_info is None:
-        return {
-            "mode": "list_by_index",
-            "index_code": index_code,
-            "metric_filter": None,
-            "raw": {"input": original}
         }
 
     # 6) Stock + metric => single_stock_metric
