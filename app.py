@@ -322,8 +322,8 @@ def detect_metric(text_lower: str) -> Optional[Dict[str, Any]]:
         Returns None if no metric detected
         
     Examples:
-        "pe ratio" → {"phrase": "pe ratio", "column": "PE_Ratio"}
-        "market cap" → {"phrase": "market cap", "column": "Market_Cap"}
+        "pe ratio" -> {"phrase": "pe ratio", "column": "PE_Ratio"}
+        "market cap" -> {"phrase": "market cap", "column": "Market_Cap"}
         
     Note:
         Uses longest match to prioritize specific phrases over generic ones.
@@ -349,9 +349,9 @@ def detect_index_code(text_lower: str) -> Optional[str]:
         Returns None if no index detected
         
     Examples:
-        "sensex stocks" → "SENSEX"
-        "nifty bank" → "NIFTY BANK"
-        "bank nifty" → "NIFTY BANK"
+        "sensex stocks" -> "SENSEX"
+        "nifty bank" -> "NIFTY BANK"
+        "bank nifty" -> "NIFTY BANK"
         
     Note:
         Uses longest match to avoid false positives.
@@ -384,15 +384,14 @@ def detect_sector(text_lower: str, original_text: str) -> Optional[str]:
         Returns None if no sector detected or likely company name
         
     Examples:
-        "banking stocks" → "Banking" (sector filter)
-        "axis bank" → None (company name, not sector)
-        "it sector high pe" → "IT" (sector filter)
-        "bajaj auto" → None (company name, not sector)
+        "banking stocks" -> "Banking" (sector filter)
+        "axis bank" -> None (company name, not sector)
+        "it sector high pe" -> "IT" (sector filter)
+        "bajaj auto" -> None (company name, not sector)
         
     Note:
         Uses context analysis to distinguish sector filters from company names.
         Short queries with specific words before sector keywords are treated as company searches.
-    """
     """
     
     # Words that indicate a sector/listing query rather than a company name
@@ -550,25 +549,25 @@ def parse_user_query(user_input: str) -> Dict[str, Any]:
     
     Query Modes:
         1. single_stock_metric: Get specific metric for one company
-           Example: "pe of reliance" → {mode: "single_stock_metric", stock_query: "reliance", metric: "PE_Ratio"}
+           Example: "pe of reliance" -> {mode: "single_stock_metric", stock_query: "reliance", metric: "PE_Ratio"}
            
         2. single_stock_overview: Get all info for one company
-           Example: "infosys" → {mode: "single_stock_overview", stock_query: "infosys"}
+           Example: "infosys" -> {mode: "single_stock_overview", stock_query: "infosys"}
            
         3. list_by_index: List all stocks in an index
-           Example: "nifty 50" → {mode: "list_by_index", index_code: "NIFTY 50"}
+           Example: "nifty 50" -> {mode: "list_by_index", index_code: "NIFTY 50"}
            
         4. list_by_metric_filter: Filter stocks by metric range
-           Example: "stocks with pe less than 20" → {mode: "list_by_metric_filter", metric_filter: {...}}
+           Example: "stocks with pe less than 20" -> {mode: "list_by_metric_filter", metric_filter: {...}}
            
         5. list_by_sector: Filter stocks by sector
-           Example: "banking stocks" → {mode: "list_by_sector", sector: "Banking"}
+           Example: "banking stocks" -> {mode: "list_by_sector", sector: "Banking"}
     
     Priority Logic:
         More specific queries match first to avoid false positives:
-        - "nifty bank high pe" → Index + Sector + Metric (most specific)
-        - "axis bank" → Single stock (company name, not sector)
-        - "banking" → Sector filter (no other context)
+        - "nifty bank high pe" -> Index + Sector + Metric (most specific)
+        - "axis bank" -> Single stock (company name, not sector)
+        - "banking" -> Sector filter (no other context)
         
     Note:
         The priority order in this function is CRITICAL for correct interpretation.
