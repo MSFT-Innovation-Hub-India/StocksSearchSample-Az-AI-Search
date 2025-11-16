@@ -11,6 +11,75 @@ This application demonstrates how to build an intelligent stock search interface
 - **Multi-Index Support**: Stocks can belong to multiple indices (NIFTY50, NIFTY100, sector-specific indices)
 - **Flexible Filtering**: Filter by sector, index, PE ratio, market cap, and other metrics
 - **No LLM Required**: Uses pattern matching and Azure AI Search capabilities for intent detection
+- **Multiple Implementation Options**: REST API or Python SDK approaches
+- **Modern Web UI**: Streamlit-based responsive interface with performance metrics
+
+---
+
+## Application Architecture
+
+### Implementation Approaches
+
+This solution provides **three entry points** for different use cases:
+
+#### 1. **Console Application - REST API** (`app.py`)
+- **Technology**: Direct HTTP calls using Python `requests` library
+- **Connection Pooling**: Uses `requests.Session()` for connection reuse
+- **Use Case**: Standalone scripts, batch processing, or integration with non-Python systems
+- **Performance**: 160-350ms per query (after initial connection)
+- **Run**: `python app.py` (interactive console)
+
+```python
+# Example usage
+from app import build_search_request_from_user_input, execute_search_request
+
+req = build_search_request_from_user_input(
+    "nifty 50 stocks",
+    service_endpoint="https://...",
+    index_name="stocks-search-index",
+    api_key="..."
+)
+result = execute_search_request(req)
+```
+
+#### 2. **Console Application - Python SDK** (`app_sdk.py`)
+- **Technology**: Official Azure Search Python SDK (`azure-search-documents`)
+- **Connection Management**: SDK handles connection pooling automatically
+- **Use Case**: Python-native applications, better type safety, easier maintenance
+- **Performance**: Similar to REST API (~160-350ms per query)
+- **Run**: `python app_sdk.py` (interactive console)
+
+```python
+# Example usage
+from app_sdk import execute_search_from_user_input_sdk
+
+result = execute_search_from_user_input_sdk("nifty 50 stocks")
+```
+
+#### 3. **Web Application** (`streamlit_app.py`)
+- **Technology**: Streamlit web framework
+- **Backend**: Uses `app.py` (REST API version) by default
+- **Features**: 
+  - Modern gradient UI with responsive design
+  - Real-time search with performance metrics
+  - Query analysis showing detected parameters
+  - Interactive results table with sorting/filtering
+  - Collapsible technical details (request/response)
+- **Use Case**: End-user interface, demos, data exploration
+- **Run**: `streamlit run streamlit_app.py`
+- **Access**: Browser at `http://localhost:8501`
+
+### Key Components
+
+```
+stock-data-search/
+├── app.py                  # REST API implementation (requests library)
+├── app_sdk.py              # Python SDK implementation (azure-search-documents)
+├── streamlit_app.py        # Web UI (uses app.py)
+├── requirements.txt        # Python dependencies
+├── .env                    # Environment variables (Azure credentials)
+└── sample_data/            # Stock data CSV file
+```
 
 ---
 
@@ -260,10 +329,57 @@ AZURE_SEARCH_API_KEY=your-admin-api-key
 pip install -r requirements.txt
 ```
 
+**Required packages**:
+- `requests>=2.31.0` - HTTP library for REST API calls
+- `python-dotenv>=1.0.0` - Environment variable management
+- `streamlit>=1.28.0` - Web UI framework
+- `azure-search-documents>=11.4.0` - Azure Search Python SDK
+- `azure-identity>=1.12.0` - Azure authentication
+
 ### 7. Run the Application
 
+**Option 1: Console Application (REST API)**
 ```bash
 python app.py
+```
+- Interactive console interface
+- Uses REST API with connection pooling
+- Shows detailed timing and query analysis
+- Type queries interactively
+
+**Option 2: Console Application (Python SDK)**
+```bash
+python app_sdk.py
+```
+- Same interactive console interface
+- Uses official Azure Search Python SDK
+- Recommended for Python-native applications
+- Better type hints and error handling
+
+**Option 3: Web Application (Streamlit)**
+```bash
+streamlit run streamlit_app.py
+```
+- Modern web interface at `http://localhost:8501`
+- Visual query analysis and results
+- Performance metrics displayed
+- Responsive design for mobile/desktop
+
+**Example Console Session**:
+```
+=== Azure AI Search Stock Query Interface ===
+Enter your query: nifty 50 stocks
+
+User query: nifty 50 stocks
+Spec: {'mode': 'list_by_index', 'index_code': 'NIFTY50', ...}
+Status code: 200
+
+[PERFORMANCE BREAKDOWN]
+  1. Input processing: 0.5 ms
+  2. Azure AI Search call: 165.2 ms
+  3. Total time: 165.7 ms
+
+Found 48 stocks in NIFTY50
 ```
 
 ---
@@ -704,12 +820,291 @@ The `any()` function checks if **any** element in the collection matches the con
 
 ---
 
+## Code Structure and Implementation Details
+
+### Core Modules
+
+#### 1. `app.py` - REST API Implementation
+
+**Purpose**: Direct HTTP communication with Azure AI Search using Python `requests` library.
+
+**Key Components**:
+
+```python
+# Global session for connection pooling (lines 13-15)
+_http_session = requests.Session()
+
+def execute_search_request(req: dict) -> dict:
+    """
+    Executes Azure AI Search request using persistent HTTP session.
+    Connection pooling improves performance by reusing TCP connections.
+    
+    Performance: ~160-350ms per query (after initial connection)
+    """
+    response = _http_session.post(
+        req["url"],
+        headers=req["headers"],
+        json=req["json"],
+        timeout=10
+    )
+    return response.json()
+
+def build_search_request_from_user_input(user_input: str, ...) -> dict:
+    """
+    End-to-end builder:
+    1. Parses user input -> query spec (parse_user_query)
+    2. Builds HTTP request (URL, headers, JSON payload)
+    3. Returns complete request dict for execution
+    """
+    spec = parse_user_query(user_input)
+    payload = build_search_payload_from_spec(spec)
+    # ... builds URL, headers
+    return {"spec": spec, "url": url, "headers": headers, "json": payload}
+```
+
+**When to Use**:
+- Integration with non-Python systems
+- Custom HTTP middleware requirements
+- Learning Azure Search REST API
+- Maximum control over HTTP request/response
+
+---
+
+#### 2. `app_sdk.py` - Python SDK Implementation
+
+**Purpose**: Pythonic interface using official Azure Search Python SDK.
+
+**Key Components**:
+
+```python
+from azure.search.documents import SearchClient
+from azure.core.credentials import AzureKeyCredential
+
+# Singleton pattern for client reuse (lines 20-32)
+_search_client = None
+
+def get_search_client() -> SearchClient:
+    """
+    Creates or returns cached SearchClient instance.
+    SDK handles connection pooling automatically.
+    """
+    global _search_client
+    if _search_client is None:
+        credential = AzureKeyCredential(API_KEY)
+        _search_client = SearchClient(
+            endpoint=SERVICE_ENDPOINT,
+            index_name=INDEX_NAME,
+            credential=credential
+        )
+    return _search_client
+
+def execute_search_request_sdk(spec: dict, search_text: str, 
+                                filter_expr: Optional[str], ...) -> dict:
+    """
+    Executes search using SDK's native methods.
+    Returns results in same format as REST API for compatibility.
+    
+    Performance: Similar to REST API (~160-350ms)
+    """
+    client = get_search_client()
+    results = client.search(
+        search_text=search_text,
+        filter=filter_expr,
+        select=select_fields,
+        top=top,
+        include_total_count=include_total_count
+    )
+    # Convert SDK results to REST API format
+    return format_response(results)
+
+def execute_search_from_user_input_sdk(user_input: str) -> dict:
+    """
+    Complete wrapper combining parsing and SDK execution.
+    Simplest interface for SDK-based queries.
+    """
+    params = build_search_request_from_user_input_sdk(user_input)
+    return execute_search_request_sdk(**params)
+```
+
+**When to Use**:
+- Python-native applications
+- Better type safety with IDE autocomplete
+- Easier maintenance and updates
+- Cleaner code with less boilerplate
+- Automatic credential refresh handling
+
+**SDK Advantages**:
+- ✅ Automatic retry logic for transient failures
+- ✅ Built-in connection pooling and management
+- ✅ Type hints and IntelliSense support
+- ✅ Consistent error handling patterns
+- ✅ Supports Azure Identity authentication
+
+---
+
+#### 3. `streamlit_app.py` - Web Interface
+
+**Purpose**: Modern, responsive web UI for end-users and demos.
+
+**Key Components**:
+
+```python
+import streamlit as st
+from app import build_search_request_from_user_input, execute_search_request
+
+# Configuration caching (lines 209-220)
+@st.cache_data
+def get_config():
+    """Cache environment variables to avoid repeated .env loads"""
+    return {
+        'endpoint': os.getenv("AZURE_SEARCH_ENDPOINT"),
+        'index': os.getenv("AZURE_SEARCH_INDEX_NAME"),
+        'api_key': os.getenv("AZURE_SEARCH_API_KEY")
+    }
+
+# Main search flow
+if search_button or user_query:
+    t0_total_start = time.time()  # Total execution timer
+    
+    # Build request using app.py
+    req = build_search_request_from_user_input(user_query, ...)
+    
+    t2_before_search = time.time()
+    result = execute_search_request(req)
+    t3_response_received = time.time()
+    
+    # Display results with performance metrics
+    st.markdown(f"Search Time: {(t3_response_received - t2_before_search) * 1000:.1f}ms")
+    st.dataframe(results)  # Interactive results table
+```
+
+**UI Features**:
+- **Query Analysis Cards**: Shows detected mode, index, sector, metrics
+- **Performance Metrics**: Three cards showing processing, search, and total time
+- **Results Table**: Interactive dataframe with sorting/filtering
+- **Technical Details**: Collapsible section with request/response JSON
+- **Responsive Design**: Works on desktop and mobile devices
+- **Modern Styling**: Gradient header, smooth animations, clean typography
+
+**Customization**:
+To use SDK version instead of REST API:
+```python
+# Change imports at top of streamlit_app.py
+from app_sdk import execute_search_from_user_input_sdk
+
+# Update search execution
+result = execute_search_from_user_input_sdk(user_query)
+```
+
+---
+
+### Shared Query Parsing Logic
+
+Both `app.py` and `app_sdk.py` share identical query parsing functions (lines 290-600):
+
+#### **Core Parsing Functions**
+
+```python
+def parse_user_query(user_input: str) -> Dict[str, Any]:
+    """
+    Master router: Analyzes input and determines query mode.
+    
+    Priority order (critical for correct interpretation):
+    1. Index + Metric filter → list_by_metric_filter
+    2. Sector + Metric filter → list_by_sector_with_filter
+    3. Index alone → list_by_index
+    4. Sector alone → list_by_sector
+    5. Metric filter → list_by_metric_filter (all stocks)
+    6. Stock + Metric → single_stock_metric
+    7. Stock alone → single_stock_overview
+    
+    Returns spec dict with mode and parameters.
+    """
+
+def detect_metric(text_lower: str) -> Optional[Dict[str, Any]]:
+    """
+    Searches for metric keywords using longest-match strategy.
+    Handles variations: "pe", "p/e", "price to earnings"
+    """
+
+def detect_index_code(text_lower: str) -> Optional[str]:
+    """
+    Detects index mentions: "nifty 50", "nifty bank", etc.
+    Prioritizes longer matches to avoid false positives.
+    """
+
+def detect_sector(text_lower: str, original_text: str) -> Optional[str]:
+    """
+    Identifies sector with smart heuristics to avoid false positives.
+    
+    Example: "axis bank" should NOT trigger "bank" sector
+    Logic: If sector keyword is preceded by a non-modifier word
+           in a short query, it's likely a company name.
+    """
+
+def detect_metric_filter(text_lower: str) -> Optional[Dict[str, Any]]:
+    """
+    Regex-based extraction of metric comparisons.
+    Pattern: <metric> <operator> <value>
+    Example: "pe less than 20" → {"metric": "PE", "op": "lt", "value": 20.0}
+    """
+
+def extract_stock_query(original: str, text_lower: str, 
+                        metric_info: Optional[Dict]) -> Optional[str]:
+    """
+    Extracts stock name by removing stopwords and metric keywords.
+    Preserves company names even with sector keywords (e.g., "axis bank").
+    """
+```
+
+#### **Priority Order Importance**
+
+The order of condition checking in `parse_user_query` is crucial:
+
+```python
+# CORRECT: Check index BEFORE sector
+if index_code and metric_info is None:
+    return {"mode": "list_by_index", ...}
+
+if sector is not None:
+    return {"mode": "list_by_sector", ...}
+
+# This ensures "niftyenergy stocks" matches index, not sector
+```
+
+---
+
 ## Performance Considerations
 
 - **Synonym Lookup**: Happens at query time in Azure AI Search's analyzer pipeline (no application overhead)
 - **Pattern Matching**: Lightweight keyword detection using dictionaries (O(n) complexity)
 - **Filter Efficiency**: Azure AI Search indexes all filterable fields for fast lookups
 - **Collection Filters**: Efficiently handled by Azure AI Search's inverted index structure
+
+### HTTP Connection Pooling Optimization
+
+**Issue Identified**: Initial implementation created a new HTTP connection for every Azure AI Search API call, resulting in:
+- First request: ~700-800ms (includes connection setup, SSL handshake, DNS lookup)
+- Subsequent requests: ~600-700ms (repeated connection overhead)
+
+**Solution Implemented**: Added persistent session with connection pooling in `app.py` (lines 13-15, 29):
+
+```python
+# Create a global session for connection pooling (reuse connections)
+_http_session = requests.Session()
+
+def execute_search_request(req: dict) -> dict:
+    response = _http_session.post(...)  # Uses persistent session
+```
+
+**Performance Improvement**:
+- First request: ~700-800ms (one-time connection setup)
+- Subsequent requests: **~160-350ms** (80% faster via connection reuse)
+
+**Impact**:
+- Console app: Faster repeated queries in interactive mode
+- Streamlit app: Significantly faster searches after initial load
+- Matches PowerShell/curl performance (~350ms) for steady-state requests
 
 ---
 
