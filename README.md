@@ -822,16 +822,166 @@ The `any()` function checks if **any** element in the collection matches the con
 
 ## Code Structure and Implementation Details
 
+### Modular Architecture
+
+The codebase uses a **shared module architecture** to eliminate code duplication and improve maintainability:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   User Input (Natural Language)              │
+└────────────────┬────────────────────────────────────────────┘
+                 │
+    ┌────────────▼──────────────┐
+    │  query_parser.py (521 lines) │  ← Shared Module
+    │  • Parse natural language     │
+    │  • Detect metrics, sectors    │
+    │  • Return structured spec     │
+    └────────────┬──────────────────┘
+                 │
+    ┌────────────▼─────────────────┐
+    │ payload_builder.py (188 lines)│  ← Shared Module
+    │ • Convert spec to Azure JSON  │
+    │ • Build OData filters         │
+    │ • Handle 7 query modes        │
+    └────────────┬─────────────────┘
+                 │
+       ┌─────────┴──────────┐
+       │                    │
+  ┌────▼─────┐      ┌──────▼────┐
+  │ app.py   │      │ app_sdk.py │
+  │ (206 lines)│    │ (300 lines) │
+  │ REST API │      │ Python SDK │
+  └────┬─────┘      └──────┬────┘
+       │                   │
+       └─────────┬─────────┘
+                 │
+         ┌───────▼──────────┐
+         │ streamlit_app.py  │
+         │ (512 lines)       │
+         │ Web UI Layer      │
+         └───────────────────┘
+```
+
+**Code Reduction Results**:
+- `app.py`: 950 lines → 206 lines (78% reduction)
+- `app_sdk.py`: 774 lines → 300 lines (61% reduction)
+- **Total**: Eliminated ~1,218 lines of duplicated code
+- **Shared modules**: 709 lines (single source of truth)
+
+---
+
 ### Core Modules
 
-#### 1. `app.py` - REST API Implementation
+#### 1. `query_parser.py` - Natural Language Processing (521 lines)
+
+**Purpose**: Convert natural language queries into structured specifications.
+
+**Key Components**:
+
+```python
+# Configuration dictionaries (lines 15-232)
+METRIC_ALIASES = {
+    "PE": ["pe", "p/e", "price to earning", ...],
+    "Market Cap": ["market cap", "mcap", "market capitalization", ...],
+    # ... 20+ financial metrics with synonyms
+}
+
+def detect_metric(user_input: str) -> Optional[str]:
+    """
+    Longest-match strategy to detect financial metrics.
+    Example: "price to earning" -> "PE"
+    """
+
+def detect_sector(user_input: str) -> Optional[str]:
+    """
+    Detects sector with company-name protection.
+    Example: "energy sector" -> "Energy"
+    (but "reliance energy" won't detect "Energy")
+    """
+
+def parse_user_query(user_input: str) -> dict:
+    """
+    Core routing logic with 9 priority modes:
+    1. single_stock_metric: "pe of reliance"
+    2. single_stock_overview: "reliance" or "show me reliance"
+    3. list_by_index: "nifty 50"
+    4. list_by_sector: "sector materials"
+    5. list_by_index_and_sector: "nifty 50 materials"
+    6. list_by_sector_and_metric_filter: "materials with pe under 20"
+    7. list_by_metric_filter: "stocks with pe between 10 and 20"
+    8. list_all: "all stocks" or "*"
+    9. fallback: Generic stock name search
+    
+    Returns: {"mode": "...", "stock_query": "...", "metric": "...", ...}
+    """
+```
+
+**When to Use Directly**:
+- Testing query parsing logic
+- Building custom UIs with different execution backends
+- Debugging query interpretation issues
+
+---
+
+#### 2. `payload_builder.py` - Azure Search JSON Builder (188 lines)
+
+**Purpose**: Convert query specifications into Azure AI Search REST API payloads.
+
+**Key Components**:
+
+```python
+def build_metric_filter_odata(filter_dict: dict) -> str:
+    """
+    Converts filter dict to OData filter string.
+    Example: {"metric": "PE", "op": "under", "value": 20}
+          -> "PE lt 20"
+    """
+
+def build_search_payload_from_spec(spec: dict) -> dict:
+    """
+    Handles 7 query modes:
+    
+    Mode 1: single_stock_metric
+      Input: "pe of reliance"
+      Output: {"search": "reliance", "select": "PE,Name", "top": 1}
+    
+    Mode 2: single_stock_overview
+      Input: "reliance"
+      Output: {"search": "reliance", "select": "*", "top": 1}
+    
+    Mode 3: list_by_index
+      Input: "nifty 50"
+      Output: {"search": "*", "filter": "Index_Code eq 'NIFTY 50'"}
+    
+    Mode 4: list_by_sector
+      Input: "materials"
+      Output: {"search": "*", "filter": "Sector eq 'Materials'"}
+    
+    ... and 3 more modes for complex filters
+    
+    Returns: Azure Search JSON payload ready for REST API
+    """
+```
+
+**When to Use Directly**:
+- Testing payload generation logic
+- Building custom backends (e.g., other search engines)
+- Understanding Azure Search query syntax
+
+---
+
+#### 3. `app.py` - REST API Implementation (206 lines, was 950)
 
 **Purpose**: Direct HTTP communication with Azure AI Search using Python `requests` library.
 
 **Key Components**:
 
 ```python
-# Global session for connection pooling (lines 13-15)
+# Import shared modules
+from query_parser import parse_user_query
+from payload_builder import build_search_payload_from_spec
+
+# Global session for connection pooling
 _http_session = requests.Session()
 
 def execute_search_request(req: dict) -> dict:
@@ -851,10 +1001,12 @@ def execute_search_request(req: dict) -> dict:
 
 def build_search_request_from_user_input(user_input: str, ...) -> dict:
     """
-    End-to-end builder:
-    1. Parses user input -> query spec (parse_user_query)
-    2. Builds HTTP request (URL, headers, JSON payload)
-    3. Returns complete request dict for execution
+    Orchestrates the query processing pipeline:
+    1. Parse user input -> spec (via query_parser)
+    2. Build Azure Search payload (via payload_builder)
+    3. Wrap in HTTP request (URL, headers, JSON)
+    
+    Returns: Complete HTTP request dict ready for execution
     """
     spec = parse_user_query(user_input)
     payload = build_search_payload_from_spec(spec)
@@ -870,17 +1022,21 @@ def build_search_request_from_user_input(user_input: str, ...) -> dict:
 
 ---
 
-#### 2. `app_sdk.py` - Python SDK Implementation
+#### 4. `app_sdk.py` - Python SDK Implementation (300 lines, was 774)
 
 **Purpose**: Pythonic interface using official Azure Search Python SDK.
 
 **Key Components**:
 
 ```python
+# Import shared modules
+from query_parser import parse_user_query
+from payload_builder import build_search_payload_from_spec
+
 from azure.search.documents import SearchClient
 from azure.core.credentials import AzureKeyCredential
 
-# Singleton pattern for client reuse (lines 20-32)
+# Singleton pattern for client reuse
 _search_client = None
 
 def get_search_client() -> SearchClient:
@@ -917,6 +1073,26 @@ def execute_search_request_sdk(spec: dict, search_text: str,
     # Convert SDK results to REST API format
     return format_response(results)
 
+def build_search_request_from_user_input_sdk(user_input: str) -> dict:
+    """
+    Orchestrates the SDK query pipeline:
+    1. Parse user input -> spec (via query_parser)
+    2. Build Azure Search payload (via payload_builder)
+    3. Convert REST payload to SDK parameters
+    
+    Returns: SDK parameters ready for execution
+    """
+    spec = parse_user_query(user_input)
+    payload = build_search_payload_from_spec(spec)
+    # Convert REST params to SDK params
+    return {
+        "spec": spec,
+        "search_text": payload.get("search", "*"),
+        "filter": payload.get("filter"),
+        "select": payload.get("select", "").split(","),
+        "top": payload.get("top", 50)
+    }
+
 def execute_search_from_user_input_sdk(user_input: str) -> dict:
     """
     Complete wrapper combining parsing and SDK execution.
@@ -939,6 +1115,59 @@ def execute_search_from_user_input_sdk(user_input: str) -> dict:
 - ✅ Type hints and IntelliSense support
 - ✅ Consistent error handling patterns
 - ✅ Supports Azure Identity authentication
+
+---
+
+#### 5. `streamlit_app.py` - Web UI (512 lines)
+
+**Purpose**: Modern web interface with Streamlit framework.
+
+**Key Components**:
+
+```python
+# Backend flexibility - choose REST API or SDK
+from app import (
+    build_search_request_from_user_input,
+    execute_search_request
+)
+# Alternative SDK import (commented):
+# from app_sdk import (
+#     build_search_request_from_user_input_sdk as build_search_request_from_user_input,
+#     execute_search_from_user_input_sdk as execute_search_request
+# )
+
+# UI displays results with performance metrics
+time_parsing_ms = (t2_before_search - t1_input_received) * 1000
+time_search_ms = (t3_response_received - t2_before_search) * 1000
+```
+
+**Features**:
+- 📱 Responsive design with modern CSS
+- 📊 Performance metrics display
+- 🎨 Color-coded metric cards
+- 🔍 Query specification debugging
+- 📈 Real-time search results
+
+**Run**: `streamlit run streamlit_app.py`
+
+---
+
+### Module Responsibilities Summary
+
+| Module | Lines | Responsibility | Used By |
+|--------|-------|----------------|---------|
+| `query_parser.py` | 521 | Natural language → structured spec | app.py, app_sdk.py |
+| `payload_builder.py` | 188 | Structured spec → Azure JSON | app.py, app_sdk.py |
+| `app.py` | 206 | REST API execution layer | streamlit_app.py |
+| `app_sdk.py` | 300 | Python SDK execution layer | streamlit_app.py (optional) |
+| `streamlit_app.py` | 512 | Web UI presentation layer | End users |
+
+**Design Principles**:
+- ✅ **Single Source of Truth**: All parsing logic in `query_parser.py`
+- ✅ **Separation of Concerns**: Parsing, payload building, and execution are separate
+- ✅ **DRY (Don't Repeat Yourself)**: Eliminated 1,218 lines of duplication
+- ✅ **Testability**: Each module can be tested independently
+- ✅ **Flexibility**: Easy to swap REST API ↔ SDK without changing parsing logic
 
 ---
 
