@@ -1,0 +1,20 @@
+{
+  "fields": {
+    "Price": {
+      "cosmos_field": "Price",
+      "aliases": ["price", "current price", "share price", "stock price", "market price", "latest price"],
+      "description": "Current stock price"
+    },
+    "Change": {
+      "cosmos_field": "Change",
+      "aliases": ["change", "price change", "change in price", "points change", "absolute change"],
+      "description": "Absolute change in price"
+    },
+    "ChangePercent": {
+      "cosmos_field": "ChangePercent",
+      "aliases": ["change percent", "change percentage", "percent change", "percentage change", "% change"],
+      "description": "Percentage change in price"
+    }
+  },
+  "always_return": ["Symbol", "DateTime"]
+}
