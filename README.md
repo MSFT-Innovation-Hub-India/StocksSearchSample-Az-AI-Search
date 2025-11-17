@@ -2,7 +2,43 @@
 
 ## Overview
 
-This application demonstrates how to build an intelligent stock search interface using Azure AI Search. It allows users to query stock information using natural language without requiring any Large Language Model (LLM) or Small Language Model (SLM). The application uses pattern matching and Azure AI Search's powerful features like synonyms and collection filters to understand user intent and retrieve relevant results.
+This application demonstrates how to build an intelligent stock search interface using Azure AI Search and Azure Cosmos DB. It allows users to query stock information using natural language without requiring any Large Language Model (LLM) or Small Language Model (SLM). The application uses pattern matching and Azure AI Search's powerful features like synonyms and collection filters to understand user intent and retrieve relevant results.
+
+## Project Structure
+
+```
+stock-data-search/
+├── search_app_cosmos.py          # Main app: AI Search + Cosmos DB integration
+├── search_app_sdk.py             # AI Search SDK implementation
+├── requirements.txt              # Python dependencies
+├── .env                          # Environment configuration (git-ignored)
+├── .env.example                  # Environment template
+├── README.md                     # This file
+│
+├── src/                          # Core modules
+│   ├── query_parser.py           # Natural language query parsing
+│   ├── payload_builder.py        # Azure Search payload construction
+│   └── db_parser.py              # Cosmos DB query functions
+│
+├── apps/                        # Optional web/API applications
+│   ├── app.py                   # REST API implementation
+│   ├── app_sdk.py               # Azure SDK implementation
+│   └── streamlit_app.py         # Web UI
+│
+├── data_import/                 # Data import utilities
+│   └── import_dynamic_data.py   # Cosmos DB CSV importer
+│
+├── config/                      # Configuration files
+│   └── cosmos_config.json       # Cosmos DB field mappings
+│
+├── sample_data/                 # Sample data files
+│   └── companies_*.csv          # Stock data CSVs
+│
+└── setup_scripts/               # Azure resource setup scripts
+    ├── index_creation.sh
+    ├── datasource_creation.sh
+    └── indexer_creation.sh
+```
 
 ### Data Storage Architecture
 
@@ -31,12 +67,53 @@ The application uses a **hybrid data storage approach** to optimize for differen
 
 This architecture ensures optimal performance and cost-efficiency by storing each data type in the most appropriate service.
 
+## Quick Start
+
+### Main Applications
+
+**Cosmos DB Integration (Recommended):**
+```powershell
+# Activate virtual environment
+.\.venv\Scripts\Activate.ps1
+
+# Run the Cosmos DB integration app
+python search_app_cosmos.py
+```
+
+**Azure Search SDK:**
+```powershell
+# Run the Azure Search SDK app
+python search_app_sdk.py
+```
+
+The `search_app_cosmos.py` integrates both Azure AI Search and Cosmos DB:
+- Resolves stock symbols using AI Search
+- Queries real-time price data from Cosmos DB
+- Shows detailed performance metrics
+
+### Optional Web Applications
+Located in `apps/` directory for demonstration purposes:
+
+```powershell
+# REST API version
+cd apps
+python app.py
+
+# SDK version
+python app_sdk.py
+
+# Web UI
+streamlit run streamlit_app.py
+```
+
 ## Features
 
 - **Natural Language Queries**: Query stocks using plain English (e.g., "sector materials with PE under 100")
 - **Synonym Support**: Search for stocks using various names and abbreviations
 - **Multi-Index Support**: Stocks can belong to multiple indices (NIFTY50, NIFTY100, sector-specific indices)
 - **Flexible Filtering**: Filter by sector, index, PE ratio, market cap, and other metrics
+- **Real-time Price Data**: Query latest prices, changes, and aggregations from Cosmos DB
+- **Performance Metrics**: Detailed timing for each operation
 - **No LLM Required**: Uses pattern matching and Azure AI Search capabilities for intent detection
 - **Multiple Implementation Options**: REST API or Python SDK approaches
 - **Modern Web UI**: Streamlit-based responsive interface with performance metrics
@@ -45,20 +122,66 @@ This architecture ensures optimal performance and cost-efficiency by storing eac
 
 ## Application Architecture
 
-### Implementation Approaches
+### Main Console Applications
 
-This solution provides **three entry points** for different use cases:
+#### 1. **Cosmos DB Integration** (`search_app_cosmos.py`)
 
-#### 1. **Console Application - REST API** (`app.py`)
+The primary application that demonstrates the hybrid architecture:
+
+**Features:**
+- Interactive console with query loop
+- Natural language processing for field extraction
+- Azure AI Search integration for symbol resolution
+- Cosmos DB queries for real-time data
+- Comprehensive timing metrics
+
+**Example Queries:**
+- "What is the price of Reliance?"
+- "Show me price and change for TCS"
+- "What is the highest price for HDFC?"
+- "Get all data for INFY"
+
+**Run:**
+```powershell
+python search_app_cosmos.py
+```
+
+#### 2. **Azure Search SDK** (`search_app_sdk.py`)
+
+Official Azure Search SDK implementation for static/master data queries:
+
+**Features:**
+- Type-safe Azure SDK implementation
+- Automatic connection pooling
+- Built-in retry logic
+- Natural language query parsing
+- Sector and index filtering
+
+**Example Queries:**
+- "NIFTY 50 stocks"
+- "Energy sector with PE under 20"
+- "PE of Reliance"
+- "Banking stocks"
+
+**Run:**
+```powershell
+python search_app_sdk.py
+```
+
+### Optional Applications (in `apps/` directory)
+
+#### 1. **Console Application - REST API** (`apps/app.py`)
 - **Technology**: Direct HTTP calls using Python `requests` library
 - **Connection Pooling**: Uses `requests.Session()` for connection reuse
 - **Use Case**: Standalone scripts, batch processing, or integration with non-Python systems
 - **Performance**: 160-350ms per query (after initial connection)
-- **Run**: `python app.py` (interactive console)
+- **Run**: `cd apps; python app.py` (interactive console)
 
 ```python
 # Example usage
-from app import build_search_request_from_user_input, execute_search_request
+import sys
+sys.path.append('..')
+from apps.app import build_search_request_from_user_input, execute_search_request
 
 req = build_search_request_from_user_input(
     "nifty 50 stocks",
@@ -69,21 +192,23 @@ req = build_search_request_from_user_input(
 result = execute_search_request(req)
 ```
 
-#### 2. **Console Application - Python SDK** (`app_sdk.py`)
+#### 2. **Console Application - Python SDK** (`apps/app_sdk.py`)
 - **Technology**: Official Azure Search Python SDK (`azure-search-documents`)
 - **Connection Management**: SDK handles connection pooling automatically
 - **Use Case**: Python-native applications, better type safety, easier maintenance
 - **Performance**: Similar to REST API (~160-350ms per query)
-- **Run**: `python app_sdk.py` (interactive console)
+- **Run**: `cd apps; python app_sdk.py` (interactive console)
 
 ```python
 # Example usage
-from app_sdk import execute_search_from_user_input_sdk
+import sys
+sys.path.append('..')
+from apps.app_sdk import execute_search_from_user_input_sdk
 
 result = execute_search_from_user_input_sdk("nifty 50 stocks")
 ```
 
-#### 3. **Web Application** (`streamlit_app.py`)
+#### 3. **Web Application** (`apps/streamlit_app.py`)
 - **Technology**: Streamlit web framework
 - **Backend**: Uses `app.py` (REST API version) by default
 - **Features**: 
@@ -93,19 +218,31 @@ result = execute_search_from_user_input_sdk("nifty 50 stocks")
   - Interactive results table with sorting/filtering
   - Collapsible technical details (request/response)
 - **Use Case**: End-user interface, demos, data exploration
-- **Run**: `streamlit run streamlit_app.py`
+- **Run**: `cd apps; streamlit run streamlit_app.py`
 - **Access**: Browser at `http://localhost:8501`
 
-### Key Components
+### Core Modules (in `src/` directory)
 
-```
-stock-data-search/
-├── app.py                  # REST API implementation (requests library)
-├── app_sdk.py              # Python SDK implementation (azure-search-documents)
-├── streamlit_app.py        # Web UI (uses app.py)
-├── import_dynamic_data.py  # Cosmos DB data import script
-├── requirements.txt        # Python dependencies
-├── .env                    # Environment variables (Azure credentials)
+- **query_parser.py**: Parses natural language queries into structured search specifications
+  - Detects stock symbols and company names
+  - Identifies sectors, indices, and metrics
+  - Maps natural language to search parameters
+
+- **payload_builder.py**: Builds Azure Search REST API payloads
+  - Converts specifications to OData filters
+  - Constructs search requests with proper field selection
+  - Supports various query modes
+
+- **db_parser.py**: Provides Cosmos DB query capabilities
+  - Connection pooling using singleton pattern
+  - Latest data queries with dynamic field selection
+  - Aggregation queries (MIN/MAX) with optimization
+  - Comprehensive performance metrics
+
+### Configuration
+
+- **.env**: Environment variables for Azure credentials
+- **config/cosmos_config.json**: Field mappings for Cosmos DB queries
 └── sample_data/            # Stock data CSV files
     ├── companies_static_cleansed_jsonindices_with_rawsymbol.csv  # Master data for AI Search
     └── companies_dynamic_real.csv  # Real-time price data for Cosmos DB
@@ -113,7 +250,7 @@ stock-data-search/
 
 ### Data Import Scripts
 
-#### **import_dynamic_data.py** - Cosmos DB Data Import
+#### **data_import/import_dynamic_data.py** - Cosmos DB Data Import
 Imports real-time stock price data into Azure Cosmos DB using managed identity authentication.
 
 **Purpose**: Load dynamic price data (prices, changes, timestamps) from CSV into Cosmos DB
@@ -121,7 +258,7 @@ Imports real-time stock price data into Azure Cosmos DB using managed identity a
 **Features**:
 - Uses Azure Managed Identity (no keys required)
 - Idempotent upsert operations (safe to re-run)
-- Reads configuration from `.env` file
+- Reads configuration from `.env` file (automatically looks in parent directory)
 - Progress tracking during import
 - Query helper function for latest prices
 
@@ -131,13 +268,14 @@ Imports real-time stock price data into Azure Cosmos DB using managed identity a
 az login
 
 # Run the import script
+cd data_import
 python import_dynamic_data.py
 ```
 
 **Requirements**:
 - Azure Cosmos DB account with RBAC enabled
 - "Cosmos DB Built-in Data Contributor" role assigned to your identity
-- Environment variables configured in `.env`:
+- Environment variables configured in `.env` (in root directory):
   - `COSMOS_ENDPOINT`: Cosmos DB endpoint URL
   - `DATABASE_NAME`: Database name
   - `CONTAINER_NAME`: Container name
@@ -148,6 +286,8 @@ Symbol,DateTime,Price,Change,ChangePercent
 RELIANCE,2025-11-17T10:30:00,2500.50,15.25,0.61
 TCS,2025-11-17T10:30:00,3450.75,-22.50,-0.65
 ```
+
+**Note**: The script automatically locates the CSV file in `sample_data/` directory relative to the project root.
 
 ---
 
@@ -356,39 +496,101 @@ The `AllIndices` field uses the **`Collection(Edm.String)`** data type, which al
 
 When querying for "NIFTYBANK" stocks, this document will be included because "NIFTYBANK" is one of the values in the collection.
 
-### 4. Load Data into Index
+### 4. Load Data into Azure AI Search
 
-Upload the CSV data to the Azure AI Search index using:
-- Azure Portal's "Import Data" wizard
-- Azure AI Search REST API
-- Azure SDK (Python, .NET, etc.)
+This application uses an **Azure AI Search Indexer** that automatically pulls data from Azure Blob Storage.
 
-**Example using Python SDK**:
-```python
-from azure.search.documents import SearchClient
-import pandas as pd
-import json
+#### Data Loading Architecture:
+```
+CSV File → Azure Blob Storage → Data Source → Indexer → Azure AI Search Index
+```
 
-# Read CSV
-df = pd.read_csv('sample_data/companies_static_cleansed_jsonindices_with_rawsymbol.csv')
+#### Steps:
 
-# Convert AllIndices from JSON string to list
-df['AllIndices'] = df['AllIndices'].apply(json.loads)
+**Step 1: Upload CSV to Azure Blob Storage**
+1. Create an Azure Storage Account (if not exists)
+2. Create a blob container (e.g., `stock-data`)
+3. Upload the CSV file manually:
+   - File: `sample_data/companies_static_cleansed_jsonindices_with_rawsymbol.csv`
+   - Upload to blob container using Azure Portal, Storage Explorer, or Azure CLI
 
-# Upload to Azure AI Search
-search_client = SearchClient(endpoint, index_name, credential)
-documents = df.to_dict('records')
-search_client.upload_documents(documents)
+**Step 2: Create Data Source**
+The data source connects Azure AI Search to your blob storage:
+
+```bash
+# Using the provided script
+cd setup_scripts
+bash datasource_creation.sh
+```
+
+Or manually via REST API:
+```bash
+curl -X POST "https://[search-service].search.windows.net/datasources?api-version=2024-07-01" \
+  -H "Content-Type: application/json" \
+  -H "api-key: [admin-key]" \
+  -d '{
+    "name": "stock-data-source",
+    "type": "azureblob",
+    "credentials": {
+      "connectionString": "DefaultEndpointsProtocol=https;AccountName=[account];AccountKey=[key];EndpointSuffix=core.windows.net"
+    },
+    "container": {
+      "name": "stock-data",
+      "query": "companies_static_cleansed_jsonindices_with_rawsymbol.csv"
+    }
+  }'
+```
+
+**Step 3: Create and Run Indexer**
+The indexer automatically pulls data from the data source and indexes it:
+
+```bash
+# Using the provided script
+cd setup_scripts
+bash indexer_creation.sh
+```
+
+Or manually via REST API:
+```bash
+curl -X POST "https://[search-service].search.windows.net/indexers?api-version=2024-07-01" \
+  -H "Content-Type: application/json" \
+  -H "api-key: [admin-key]" \
+  -d '{
+    "name": "stock-data-indexer",
+    "dataSourceName": "stock-data-source",
+    "targetIndexName": "stocks-search-index",
+    "schedule": { "interval": "PT24H" }
+  }'
+```
+
+**Benefits of This Approach:**
+- ✅ **Automated**: Indexer runs on schedule (e.g., daily)
+- ✅ **Incremental Updates**: Only processes changed/new data
+- ✅ **Monitoring**: Built-in execution history and error tracking
+- ✅ **Scalable**: Handles large datasets efficiently
+- ✅ **Change Tracking**: Automatically detects updates in blob storage
+
+**Check Indexer Status:**
+```bash
+# View indexer execution history
+curl "https://[search-service].search.windows.net/indexers/stock-data-indexer/status?api-version=2024-07-01" \
+  -H "api-key: [admin-key]"
 ```
 
 ### 5. Configure Application
 
-Create a `.env` file in the project root with your Azure AI Search credentials:
+Create a `.env` file in the project root with your Azure credentials:
 
 ```env
+# Azure AI Search Configuration
 AZURE_SEARCH_ENDPOINT=https://your-service-name.search.windows.net
 AZURE_SEARCH_INDEX_NAME=stocks-search-index
 AZURE_SEARCH_API_KEY=your-admin-api-key
+
+# Azure Cosmos DB Configuration (for search_app_cosmos.py)
+COSMOS_ENDPOINT=https://your-cosmosdb-account.documents.azure.com:443/
+DATABASE_NAME=db001
+CONTAINER_NAME=stocks-dynamic-data
 ```
 
 ### 6. Install Dependencies
@@ -400,24 +602,25 @@ pip install -r requirements.txt
 **Required packages**:
 - `requests>=2.31.0` - HTTP library for REST API calls
 - `python-dotenv>=1.0.0` - Environment variable management
-- `streamlit>=1.28.0` - Web UI framework
+- `streamlit>=1.28.0` - Web UI framework (optional)
 - `azure-search-documents>=11.4.0` - Azure Search Python SDK
 - `azure-identity>=1.12.0` - Azure authentication
+- `azure-cosmos>=4.14.2` - Azure Cosmos DB SDK
 
 ### 7. Run the Application
 
-**Option 1: Console Application (REST API)**
+**Option 1: Cosmos DB Integration (Recommended)**
 ```bash
-python app.py
+python search_app_cosmos.py
 ```
-- Interactive console interface
-- Uses REST API with connection pooling
-- Shows detailed timing and query analysis
-- Type queries interactively
+- Interactive console with AI Search + Cosmos DB
+- Real-time price data queries
+- Aggregation support (MIN/MAX)
+- Detailed performance metrics
 
-**Option 2: Console Application (Python SDK)**
+**Option 2: Azure Search SDK**
 ```bash
-python app_sdk.py
+python search_app_sdk.py
 ```
 - Same interactive console interface
 - Uses official Azure Search Python SDK

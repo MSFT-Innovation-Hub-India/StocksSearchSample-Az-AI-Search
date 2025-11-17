@@ -36,8 +36,9 @@ from azure.cosmos import CosmosClient, PartitionKey
 from azure.identity import DefaultAzureCredential
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file (look in parent directory)
+env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+load_dotenv(dotenv_path=env_path)
 
 # ============================
 # CONFIG: UPDATE THESE VALUES
@@ -48,7 +49,7 @@ COSMOS_ENDPOINT = os.getenv("COSMOS_ENDPOINT", "https://<your-account>.documents
 DATABASE_NAME = os.getenv("DATABASE_NAME", "db001")
 CONTAINER_NAME = os.getenv("CONTAINER_NAME", "stocks-dynamic-data")
 
-CSV_PATH = "sample_data/companies_dynamic_real.csv"  # path to your dynamic CSV file
+CSV_PATH = os.path.join(os.path.dirname(__file__), '..', 'sample_data', 'companies_dynamic_real.csv')  # path to your dynamic CSV file
 
 # ============================
 # CONNECT TO COSMOS

@@ -1,23 +1,36 @@
 """
-Cosmos DB Dynamic Data Query Application
+Stock Search Application - Cosmos DB Integration (search_app_cosmos.py)
 
-This module provides an interactive console application that:
+This module provides an interactive console application that integrates Azure AI Search
+with Azure Cosmos DB for real-time stock data queries.
+
+Capabilities:
 1. Accepts natural language queries from users
-2. Uses Azure AI Search to resolve stock symbols
+2. Uses Azure AI Search to resolve stock symbols from company names
 3. Parses user intent to identify requested fields (Price, Change, ChangePercent)
-4. Queries Cosmos DB for real-time stock data
-5. Returns results with detailed performance metrics
+4. Queries Azure Cosmos DB for real-time/dynamic stock price data
+5. Returns results with detailed performance metrics at each step
 
 Features:
 - Natural language processing for field extraction
 - Symbol resolution via Azure AI Search
 - Dynamic field selection based on user input
-- Comprehensive performance timing
-- Interactive console interface
+- Aggregation support (MIN/MAX for highest/lowest prices)
+- Comprehensive performance timing (parsing, search, query, total)
+- Interactive console interface with example queries
 
 Architecture:
-User Input → Parse Query → AI Search (get SymbolRaw) → Parse Fields → 
+User Input → Parse Fields → AI Search (resolve symbol) → Parse Query → 
 Cosmos DB Query → Return Results with Timing
+
+Usage:
+    python search_app_cosmos.py
+
+Example Queries:
+    - "What is the price of Reliance?"
+    - "Show me price and change for TCS"
+    - "What is the highest price for HDFC?"
+    - "Get all data for INFY"
 """
 
 import os
@@ -28,8 +41,8 @@ from typing import Dict, Any, List, Optional, Tuple
 from dotenv import load_dotenv
 
 # Import existing modules
-from query_parser import parse_user_query
-from db_parser import get_latest_stock_data, get_stock_aggregation
+from src.query_parser import parse_user_query
+from src.db_parser import get_latest_stock_data, get_stock_aggregation
 import requests
 
 # Load environment variables
@@ -41,7 +54,7 @@ AZURE_SEARCH_INDEX = os.getenv("AZURE_SEARCH_INDEX_NAME", "stocks-search-index")
 AZURE_SEARCH_API_KEY = os.getenv("AZURE_SEARCH_API_KEY")
 
 # Load Cosmos DB field configuration
-COSMOS_CONFIG_PATH = "cosmos_config.json"
+COSMOS_CONFIG_PATH = "config/cosmos_config.json"
 
 
 class CosmosDynamicQueryApp:
@@ -57,7 +70,8 @@ class CosmosDynamicQueryApp:
         self.load_cosmos_config()
         self.session = requests.Session()
         print("\n" + "="*80)
-        print("Cosmos DB Dynamic Stock Data Query Application")
+        print("Stock Search Application - Cosmos DB Integration")
+        print("search_app_cosmos.py")
         print("="*80)
         print("Initialized successfully!\n")
     
@@ -311,8 +325,9 @@ class CosmosDynamicQueryApp:
     
     def run_interactive(self):
         """Run the application in interactive console mode."""
-        print("\nWelcome to the Cosmos DB Stock Query Application!")
-        print("You can ask questions like:")
+        print("\nWelcome to the Stock Search Application (Cosmos DB Integration)!")
+        print("\nThis app integrates Azure AI Search with Cosmos DB for real-time stock data.")
+        print("\nExample queries:")
         print("  • What is the price of Reliance?")
         print("  • Show me price and change for TCS")
         print("  • Get all data for INFY")

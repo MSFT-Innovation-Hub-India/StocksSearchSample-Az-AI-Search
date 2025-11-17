@@ -8,8 +8,11 @@ import requests
 import json
 
 # Import shared modules
-from query_parser import parse_user_query
-from payload_builder import build_search_payload_from_spec
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
+from src.query_parser import parse_user_query
+from src.payload_builder import build_search_payload_from_spec
 
 # Load environment variables from .env file
 load_dotenv()

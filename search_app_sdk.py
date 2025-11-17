@@ -1,3 +1,37 @@
+"""
+Stock Search Application - Azure SDK Implementation (search_app_sdk.py)
+
+This module provides an interactive console application for querying stock data
+using the official Azure Search Python SDK (azure-search-documents).
+
+Capabilities:
+1. Natural language query parsing for stock search
+2. Full-text search with synonym support
+3. Complex filtering (sector, index, PE ratio, market cap)
+4. Multi-index support (NIFTY50, NIFTY100, sector indices)
+5. Performance metrics and timing analysis
+
+Features:
+- Type-safe Azure SDK implementation
+- Automatic connection pooling (managed by SDK)
+- Built-in retry logic for transient failures
+- Pythonic API with IntelliSense support
+- Interactive console interface
+
+Architecture:
+User Input → Parse Query → Build Payload → Azure Search SDK → 
+Format Results with Timing
+
+Usage:
+    python search_app_sdk.py
+
+Example Queries:
+    - "NIFTY 50 stocks"
+    - "Energy sector with PE under 20"
+    - "PE of Reliance"
+    - "Banking stocks"
+"""
+
 import re
 from typing import Dict, Any, Optional, List
 import time
@@ -10,8 +44,8 @@ from azure.search.documents.models import QueryType
 import json
 
 # Import shared modules
-from query_parser import parse_user_query
-from payload_builder import build_search_payload_from_spec
+from src.query_parser import parse_user_query
+from src.payload_builder import build_search_payload_from_spec
 
 # Load environment variables from .env file
 load_dotenv()

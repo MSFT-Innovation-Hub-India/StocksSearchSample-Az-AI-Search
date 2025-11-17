@@ -8,12 +8,15 @@ import json
 # This application supports two backend implementations:
 #
 # Option 1 (DEFAULT): REST API with manual connection pooling
-from app import (
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
+from apps.app import (
     build_search_request_from_user_input,
     execute_search_request
 )
 # Option 2: Azure SDK with automatic connection pooling
-# from app_sdk import (
+# from apps.app_sdk import (
 #     build_search_request_from_user_input_sdk as build_search_request_from_user_input,
 #     execute_search_from_user_input_sdk as execute_search_request
 # )
