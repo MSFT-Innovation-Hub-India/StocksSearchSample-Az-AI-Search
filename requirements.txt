@@ -3,3 +3,4 @@ python-dotenv>=1.0.0
 streamlit
 azure-search-documents
 azure-identity
+azure-cosmos

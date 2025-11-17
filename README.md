@@ -4,6 +4,33 @@
 
 This application demonstrates how to build an intelligent stock search interface using Azure AI Search. It allows users to query stock information using natural language without requiring any Large Language Model (LLM) or Small Language Model (SLM). The application uses pattern matching and Azure AI Search's powerful features like synonyms and collection filters to understand user intent and retrieve relevant results.
 
+### Data Storage Architecture
+
+The application uses a **hybrid data storage approach** to optimize for different data access patterns:
+
+#### 1. **Azure AI Search** - Static/Master Data
+- **Purpose**: Stores company master data and metadata that changes infrequently
+- **Data Type**: Company profiles, sectors, market cap, PE ratios, indices membership
+- **Update Frequency**: Weekly or monthly
+- **Strengths**: 
+  - Full-text search with synonyms
+  - Complex filtering and aggregations
+  - Natural language query processing
+- **Use Case**: "Find all NIFTY50 stocks in Energy sector with PE < 20"
+
+#### 2. **Azure Cosmos DB** - Dynamic/Real-time Data
+- **Purpose**: Stores frequently changing stock price data
+- **Data Type**: Current prices, price changes, timestamps, trading volumes
+- **Update Frequency**: Real-time or near-real-time (every few seconds/minutes)
+- **Strengths**:
+  - Low-latency reads/writes
+  - Global distribution
+  - Automatic indexing
+  - Partition-based queries
+- **Use Case**: "Get latest price and change for RELIANCE stock"
+
+This architecture ensures optimal performance and cost-efficiency by storing each data type in the most appropriate service.
+
 ## Features
 
 - **Natural Language Queries**: Query stocks using plain English (e.g., "sector materials with PE under 100")
@@ -76,9 +103,50 @@ stock-data-search/
 ├── app.py                  # REST API implementation (requests library)
 ├── app_sdk.py              # Python SDK implementation (azure-search-documents)
 ├── streamlit_app.py        # Web UI (uses app.py)
+├── import_dynamic_data.py  # Cosmos DB data import script
 ├── requirements.txt        # Python dependencies
 ├── .env                    # Environment variables (Azure credentials)
-└── sample_data/            # Stock data CSV file
+└── sample_data/            # Stock data CSV files
+    ├── companies_static_cleansed_jsonindices_with_rawsymbol.csv  # Master data for AI Search
+    └── companies_dynamic_real.csv  # Real-time price data for Cosmos DB
+```
+
+### Data Import Scripts
+
+#### **import_dynamic_data.py** - Cosmos DB Data Import
+Imports real-time stock price data into Azure Cosmos DB using managed identity authentication.
+
+**Purpose**: Load dynamic price data (prices, changes, timestamps) from CSV into Cosmos DB
+
+**Features**:
+- Uses Azure Managed Identity (no keys required)
+- Idempotent upsert operations (safe to re-run)
+- Reads configuration from `.env` file
+- Progress tracking during import
+- Query helper function for latest prices
+
+**Usage**:
+```bash
+# Ensure you're logged into Azure CLI
+az login
+
+# Run the import script
+python import_dynamic_data.py
+```
+
+**Requirements**:
+- Azure Cosmos DB account with RBAC enabled
+- "Cosmos DB Built-in Data Contributor" role assigned to your identity
+- Environment variables configured in `.env`:
+  - `COSMOS_ENDPOINT`: Cosmos DB endpoint URL
+  - `DATABASE_NAME`: Database name
+  - `CONTAINER_NAME`: Container name
+
+**CSV Format**:
+```csv
+Symbol,DateTime,Price,Change,ChangePercent
+RELIANCE,2025-11-17T10:30:00,2500.50,15.25,0.61
+TCS,2025-11-17T10:30:00,3450.75,-22.50,-0.65
 ```
 
 ---
