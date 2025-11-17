@@ -22,14 +22,14 @@ It highlights where user input is parsed, how synonym maps and `AllIndices` coll
      │  (CLI/UI) │      │ Interactive loop     │      │ (printed / Streamlit)      │
      └───────────┘      │  • capture query     │      └────────────────────────────┘
                         │  • log timestamps    │
-                        └────┬─────────────────┘
+                        └───────────────┬──────┘
                                         │ user text
                                         ▼
                                     ┌──────────────────────────┐
                                     │ query_parser.parse_user… │
                                     │  • detect stocks         │
                                     │  • infer metrics/filters │
-                                    └────┬─────────────────────┘
+                                    └────────┬─────────────────┘
                                              │ structured spec
                                              ▼
                                     ┌──────────────────────────┐
@@ -37,7 +37,7 @@ It highlights where user input is parsed, how synonym maps and `AllIndices` coll
                                     │  • search text           │
                                     │  • AllIndices filter     │
                                     │  • select fields / top   │
-                                    └────┬─────────────────────┘
+                                    └────────┬─────────────────┘
                                              │ Azure AI Search request
                                              ▼
                         ┌───────────────────────────────────────────────┐
@@ -46,7 +46,7 @@ It highlights where user input is parsed, how synonym maps and `AllIndices` coll
                         │    AllIndices[] collection, metrics           │
                         │  • Synonym map: "Reliance" ↔ "RELIANCE"       │
                         │  • Collection filter: any(AllIndices eq …)    │
-                        └────┬──────────────────────────────────────────┘
+                        └────────┬──────────────────────────────────────┘
                                  │ ranked docs + @odata.count
                                  ▼
                         ┌───────────────────────────────────────────────┐
@@ -119,7 +119,7 @@ Step 4 - Response snippet surfaced to user
                  ┌────────────────────────────────┐
                  │ parse_fields_from_query        │
                  │ detect_aggregation             │
-                 └────┬───────────────────────────┘
+                 └──────────┬─────────────────────┘
                             │ requested fields + agg
                             ▼
                  ┌────────────────────────────────┐
@@ -127,7 +127,7 @@ Step 4 - Response snippet surfaced to user
                  │  • uses query_parser           │
                  │  • posts to Azure AI Search    │
                  │  • synonym map + AllIndices    │
-                 └────┬───────────────────────────┘
+                 └──────────┬─────────────────────┘
                             │ SymbolRaw, Symbol
                             ▼
                  ┌────────────────────────────────┐
@@ -136,7 +136,7 @@ Step 4 - Response snippet surfaced to user
                  │  • Composite idx: SymbolRaw,   │
                  │    DateTime                    │
                  │  • Metrics: Price, Change, %   │
-                 └────┬───────────────────────────┘
+                 └──────────┬─────────────────────┘
                             │ latest row / aggregation
                             ▼
                  ┌────────────────────────────────┐
